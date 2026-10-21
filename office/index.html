@@ -54,7 +54,16 @@ h1 span { color: var(--lamp); }
 .main { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start; }
 @media (max-width: 960px) { .main { grid-template-columns: minmax(0, 1fr); } }
 .stage-box { background: var(--bezel); border: 2px solid #3d3350; border-radius: 6px; padding: 8px; min-width: 0; box-shadow: 0 0 0 4px rgba(20,18,30,.6), 0 18px 50px rgba(0,0,0,.45), 0 0 80px rgba(242,181,68,.06); }
-canvas { display: block; width: 100%; height: auto; image-rendering: pixelated; cursor: default; }
+canvas { display: block; width: 100%; height: auto; image-rendering: pixelated; cursor: default; touch-action: pan-y; border-radius: 3px; }
+.camctl { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 0 0 6px; }
+.camctl button { font-size: 12px; padding: 4px 10px; background: var(--panel); }
+.camctl button[data-zoom] { width: 32px; padding: 4px 0; font-weight: 700; }
+.camctl .hint { margin-left: auto; color: var(--muted); font-size: 11px; }
+.now { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; margin: 6px 0 0; padding: 7px 10px; background: var(--ink); border: 1px solid var(--line); border-radius: 3px; font-size: 13px; min-height: 34px; }
+.now .lbl { font-size: 10px; letter-spacing: .08em; color: var(--muted); }
+.now b { font-weight: 700; }
+.now .tx { min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 640px) { .camctl .hint { display: none; } .camctl button { font-size: 13px; padding: 7px 12px; } .camctl button[data-zoom] { width: 40px; padding: 7px 0; } .now { font-size: 14px; } }
 .legend { color: var(--muted); font-size: 11px; padding: 6px 4px 0; margin: 0; }
 .legend a { color: var(--lamp); }
 aside { display: grid; gap: 12px; min-width: 0; }
@@ -149,7 +158,15 @@ button[aria-pressed=true] { border-color: var(--lamp); color: var(--lamp); }
 
   <div class="main">
     <div class="stage-box">
+      <div class="camctl" role="group" aria-label="화면 보기">
+        <button type="button" data-cam="all" aria-pressed="false">전체</button>
+        <button type="button" data-cam="follow" aria-pressed="false">따라가기</button>
+        <button type="button" data-zoom="-1" aria-label="축소">−</button>
+        <button type="button" data-zoom="1" aria-label="확대">+</button>
+        <span class="hint">두 손가락이나 트랙패드로 확대 · 확대한 뒤 끌어서 이동 · 두 번 누르면 확대/전체</span>
+      </div>
       <canvas id="office" width="1680" height="990" role="img" aria-label="MELUNE 픽셀 사무실. AI 팀원들이 기획, 상품 수집, 이미지 생성, 제작, 검수, 업로드, DM 응대, 리뷰 순서로 일을 넘겨줍니다."></canvas>
+      <p class="now" id="now" aria-live="off"></p>
       <p class="legend"><span id="legendtx">시뮬레이션 화면입니다. 실제 작업 순서는 REELS_SYSTEM.md의 주간 리듬을 따릅니다.</span> 가구·바닥 도트: <a href="https://opengameart.org/content/cool-school-tileset" target="_blank" rel="noopener">Cool School tileset</a> (NettySvit, CC0)</p>
     </div>
 
@@ -241,6 +258,7 @@ function setPath(a, pts, carry) {
   if (a.done) a.done();
   a.path = pts.filter((p, i, arr) => i === 0 ? (Math.abs(p.x-a.pos.x)+Math.abs(p.y-a.pos.y) > .5) : (Math.abs(p.x-arr[i-1].x)+Math.abs(p.y-arr[i-1].y) > .5));
   a.carry = carry || null;
+  if (carry) lastActor = a;
   return new Promise(r => { a.done = () => { a.done = null; a.carry = null; r(); }; if (!a.path.length) a.done(); });
 }
 const laneOf = a => LANE + (a.i % 3) * 3;
@@ -284,6 +302,7 @@ async function takeBreak(a) {
   await goLounge(a, s);
   if (a.spot !== s) return;
   a.bubble = { text: s.say[Math.floor(Math.random() * s.say.length)], icon: s.icon, left: 3 };
+  lastActor = a;
   await wait(4500 + Math.random() * 3000);
   if (a.spot === s) home(a);
 }
@@ -399,6 +418,7 @@ function log(a, text) {
 renderStage();
 async function say(a, text, icon, ms = 1500) {
   a.bubble = { text, icon, left: ms/1000 + .5 };
+  lastActor = a;
   log(a, text);
   await wait(ms);
 }
@@ -408,7 +428,7 @@ let selected = null;
 teamEl.innerHTML = team.map(a => `<li><button type="button" data-id="${a.id}" aria-pressed="false"><span class="sw" style="background:${a.look.shirt};box-shadow:inset 0 4px 0 ${a.look.hair}"></span><span class="nm">${a.name}<small>${a.role}</small></span><span class="pill" data-pill="${a.id}">대기</span></button></li>`).join('');
 teamEl.addEventListener('click', e => { const b = e.target.closest('button'); if (b) select(b.dataset.id); });
 function select(id) {
-  selected = id; const a = A[id];
+  selected = id; pickedAt = simT; const a = A[id];
   teamEl.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.id === id));
   detailEl.innerHTML = `<h3></h3><p class="d"></p><p><code></code></p>`;
   detailEl.querySelector('h3').textContent = `${a.name} · ${a.role}`;
@@ -1001,6 +1021,79 @@ function update(dt) {
   while (footprints.length && simT - footprints[0].t > 3) footprints.shift();
 }
 
+// ---------- 카메라: 전체 보기 · 따라가기 · 직접 확대 ----------
+const cam = { x: W / 2, y: H / 2, z: 1, mode: 'all', followZ: 2.4, k0: S, bw: W * S, bh: H * S };
+let mobile = false, lastActor = null, pickedAt = -99;
+const camBtns = document.querySelectorAll('[data-cam]');
+const nowEl = document.getElementById('now');
+function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
+function setMode(m) {
+  cam.mode = m;
+  camBtns.forEach(b => b.setAttribute('aria-pressed', b.dataset.cam === m));
+  if (m !== 'free') store('office.cam', m);
+}
+function fitCanvas() {
+  const cssW = cv.clientWidth || 600, dpr = Math.min(window.devicePixelRatio || 1, 3);
+  const wasMobile = mobile;
+  mobile = cssW < 640;
+  if (mobile) {
+    const bw = Math.round(cssW * dpr), bh = Math.round(bw * .78);
+    if (cv.width !== bw || cv.height !== bh) { cv.width = bw; cv.height = bh; }
+  } else if (cv.width !== W * S || cv.height !== H * S) { cv.width = W * S; cv.height = H * S; }
+  cam.bw = cv.width; cam.bh = cv.height; cam.k0 = cam.bw / W;
+  cam.followZ = mobile ? 2.6 : 2;
+  if (wasMobile !== mobile && cam.mode !== 'free') setMode(store('office.cam') || (mobile ? 'follow' : 'all'));
+}
+// 따라갈 사람: 방금 고른 팀원 → 무언가 들고 걷는 사람 → 마지막으로 말한 사람
+function focusAgent() {
+  if (selected && simT - pickedAt < 25) return A[selected];
+  const carrier = team.find(a => a.carry && a.path.length);
+  return carrier || lastActor;
+}
+function clampCam() {
+  const k = cam.k0 * cam.z, vw = cam.bw / k, vh = cam.bh / k;
+  cam.x = vw >= W ? W / 2 : Math.max(vw / 2, Math.min(W - vw / 2, cam.x));
+  cam.y = vh >= H ? H / 2 : Math.max(vh / 2, Math.min(H - vh / 2, cam.y));
+}
+function updateCam(dt) {
+  let tx = cam.x, ty = cam.y, tz = cam.z;
+  if (cam.mode === 'all') { tx = W / 2; ty = H / 2; tz = 1; }
+  if (cam.mode === 'follow') {
+    const a = focusAgent();
+    tz = cam.followZ;
+    if (a) { tx = a.pos.x; ty = a.pos.y - 14; } else { tx = W / 2; ty = H / 2; tz = Math.min(tz, 1.5); }
+  }
+  const s = Math.min(1, dt * 2.6);
+  cam.x += (tx - cam.x) * s; cam.y += (ty - cam.y) * s; cam.z += (tz - cam.z) * s;
+  clampCam();
+  cv.style.touchAction = cam.z > 1.05 ? 'none' : 'pan-y';
+}
+function camTransform() {
+  const k = cam.k0 * cam.z;
+  return [k, cam.bw / 2 - cam.x * k, cam.bh / 2 - cam.y * k];
+}
+function toLogical(clientX, clientY) {
+  const b = cv.getBoundingClientRect(), [k, ox, oy] = camTransform();
+  const dx = (clientX - b.left) * (cam.bw / b.width), dy = (clientY - b.top) * (cam.bh / b.height);
+  return { x: (dx - ox) / k, y: (dy - oy) / k };
+}
+function refreshNow() {
+  const a = cam.mode === 'follow' ? focusAgent() : null;
+  if (a) {
+    const t = a.bubble ? a.bubble.text : a.path.length ? (a.carry ? '전달하러 가는 중' : '이동 중') : '자리에서 대기';
+    nowEl.innerHTML = '<span class="lbl">따라가는 중</span><b></b><span class="tx"></span>';
+    nowEl.querySelector('b').textContent = `${a.name} · ${a.role}`;
+    nowEl.querySelector('b').style.color = colorOf(a);
+    nowEl.querySelector('.tx').textContent = t;
+  } else {
+    const l = logItems[logItems.length - 1];
+    nowEl.innerHTML = '<span class="lbl">방금</span><b></b><span class="tx"></span>';
+    nowEl.querySelector('b').textContent = l ? l.who : '사무실';
+    if (l) nowEl.querySelector('b').style.color = l.color;
+    nowEl.querySelector('.tx').textContent = l ? l.text : '곧 다음 묶음이 시작돼요';
+  }
+}
+
 let last = performance.now(), pillT = 0;
 function frame(now) {
   const dt = Math.min(.05, (now - last) / 1000); last = now;
@@ -1008,22 +1101,93 @@ function frame(now) {
     const sub = speed;
     for (let k = 0; k < sub; k++) update(dt);
   }
-  g.setTransform(S, 0, 0, S, 0, 0);
+  updateCam(dt);
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  g.fillStyle = '#14121c'; g.fillRect(0, 0, cam.bw, cam.bh);
+  const [k, ox, oy] = camTransform();
+  g.setTransform(k, 0, 0, k, ox, oy);
   g.imageSmoothingEnabled = false;
   scene();
-  pillT += dt; if (pillT > .25) { pillT = 0; refreshPills(); }
+  pillT += dt; if (pillT > .25) { pillT = 0; refreshPills(); refreshNow(); }
   requestAnimationFrame(frame);
 }
 
-// ---------- 캔버스 클릭 ----------
+// ---------- 캔버스 입력: 탭 = 팀원 선택, 끌기 = 이동, 두 손가락 = 확대 ----------
 let hover = null;
-function hit(e) {
-  const b = cv.getBoundingClientRect(), x = (e.clientX - b.left) / b.width * W, y = (e.clientY - b.top) / b.height * H;
-  return team.find(a => x > a.pos.x - 7 && x < a.pos.x + 7 && y > a.pos.y - 19 && y < a.pos.y + 2) || null;
+function hitAt(p) { return team.find(a => p.x > a.pos.x - 7 && p.x < a.pos.x + 7 && p.y > a.pos.y - 19 && p.y < a.pos.y + 2) || null; }
+const ptrs = new Map(); let gesture = null;
+function zoomAt(z, clientX, clientY) {
+  const before = toLogical(clientX, clientY);
+  cam.z = Math.max(1, Math.min(4, z));
+  clampCam();
+  const after = toLogical(clientX, clientY);
+  cam.x += before.x - after.x; cam.y += before.y - after.y;
+  clampCam();
 }
-cv.addEventListener('mousemove', e => { hover = hit(e); cv.style.cursor = hover ? 'pointer' : 'default'; });
+cv.addEventListener('pointerdown', e => {
+  ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  try { cv.setPointerCapture(e.pointerId); } catch (err) {}
+  if (ptrs.size === 1) gesture = { type: 'tap', sx: e.clientX, sy: e.clientY, cx: cam.x, cy: cam.y };
+  if (ptrs.size === 2) {
+    const [p, q] = [...ptrs.values()];
+    gesture = { type: 'pinch', d: Math.hypot(p.x - q.x, p.y - q.y) || 1, z: cam.z };
+    setMode('free');
+  }
+});
+cv.addEventListener('pointermove', e => {
+  if (!ptrs.has(e.pointerId)) {
+    if (e.pointerType === 'mouse') { hover = hitAt(toLogical(e.clientX, e.clientY)); cv.style.cursor = hover ? 'pointer' : (cam.z > 1.05 ? 'grab' : 'default'); }
+    return;
+  }
+  ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (!gesture) return;
+  if (gesture.type === 'pinch' && ptrs.size >= 2) {
+    const [p, q] = [...ptrs.values()];
+    zoomAt(gesture.z * Math.hypot(p.x - q.x, p.y - q.y) / gesture.d, (p.x + q.x) / 2, (p.y + q.y) / 2);
+    return;
+  }
+  const moved = Math.hypot(e.clientX - gesture.sx, e.clientY - gesture.sy);
+  if (gesture.type === 'tap' && moved > 6 && cam.z > 1.05) { gesture.type = 'pan'; setMode('free'); }
+  if (gesture.type === 'pan') {
+    const b = cv.getBoundingClientRect(), k = cam.k0 * cam.z * (b.width / cam.bw);
+    cam.x = gesture.cx - (e.clientX - gesture.sx) / k; cam.y = gesture.cy - (e.clientY - gesture.sy) / k;
+    clampCam();
+  }
+});
+function endPtr(e) {
+  if (!ptrs.has(e.pointerId)) return;
+  ptrs.delete(e.pointerId);
+  if (gesture && gesture.type === 'tap' && e.type === 'pointerup') {
+    const a = hitAt(toLogical(e.clientX, e.clientY));
+    if (a) { select(a.id); pickedAt = simT; if (cam.mode !== 'follow' && mobile) setMode('follow'); }
+  }
+  if (!ptrs.size) gesture = null;
+  else if (gesture && gesture.type === 'pinch') { const [p] = [...ptrs.values()]; gesture = { type: 'pan', sx: p.x, sy: p.y, cx: cam.x, cy: cam.y }; }
+}
+cv.addEventListener('pointerup', endPtr);
+cv.addEventListener('pointercancel', endPtr);
 cv.addEventListener('mouseleave', () => { hover = null; });
-cv.addEventListener('click', e => { const a = hit(e); if (a) select(a.id); });
+cv.addEventListener('wheel', e => {
+  if (!e.ctrlKey) return;   // 트랙패드 핀치만 확대로 쓰고, 일반 스크롤은 페이지에 맡긴다
+  e.preventDefault();
+  setMode('free');
+  zoomAt(cam.z * Math.exp(-e.deltaY * .01), e.clientX, e.clientY);
+}, { passive: false });
+cv.addEventListener('dblclick', e => {
+  if (cam.z > 1.3) setMode('all'); else { setMode('free'); zoomAt(2.4, e.clientX, e.clientY); }
+});
+camBtns.forEach(b => b.addEventListener('click', () => { if (b.dataset.cam === 'follow') pickedAt = -99; setMode(b.dataset.cam); }));
+document.querySelectorAll('[data-zoom]').forEach(b => b.addEventListener('click', () => {
+  const f = b.dataset.zoom === '1' ? 1.35 : 1 / 1.35;
+  if (cam.mode === 'follow') { cam.followZ = Math.max(1.2, Math.min(4, cam.followZ * f)); return; }
+  setMode('free');
+  const r0 = cv.getBoundingClientRect();
+  zoomAt(cam.z * f, r0.left + r0.width / 2, r0.top + r0.height / 2);
+  if (cam.z <= 1.01) setMode('all');
+}));
+if ('ResizeObserver' in window) new ResizeObserver(fitCanvas).observe(cv); else window.addEventListener('resize', fitCanvas);
+fitCanvas();
+setMode(store('office.cam') || (mobile ? 'follow' : 'all'));
 
 // ---------- 실시간 모드: Studio 앱(/office/)에서 열면 /api/office 를 5초마다 읽는다 ----------
 const themesEl = document.getElementById('themes');
@@ -1139,9 +1303,10 @@ async function poll() {
   return true;
 }
 
+tickClock();
 requestAnimationFrame(frame);
 (document.fonts ? document.fonts.ready : Promise.resolve()).then(async () => {
-  const ok = location.protocol.startsWith('http') && await poll();
+  const ok = location.protocol.startsWith('http') && !location.hostname.endsWith('github.io') && await poll();
   if (ok) return;
   A.me.bubble = { text: '오늘 묶음 하나 맡겨볼까', icon: 'bulb', left: 2.2 };
   document.getElementById('theme').value = '';
