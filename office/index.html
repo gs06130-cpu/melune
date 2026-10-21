@@ -138,6 +138,30 @@ button[aria-pressed=true] { border-color: var(--lamp); color: var(--lamp); }
 .pill.on { color: var(--lamp); border-color: var(--lamp); }
 .pill.ok { color: var(--done); border-color: #3d5d52; }
 .livenote { margin: 0; font-size: 12px; }
+.reports { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.reports button { width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; align-items: center; text-align: left; font-size: 12px; padding: 6px 8px; }
+.reports .tt { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.reports time { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.pill.bad { color: #2a0d0a; background: var(--warn); border-color: var(--warn); }
+.pill.good { color: #10261d; background: var(--done); border-color: var(--done); }
+.recent { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 2px; font-size: 11px; }
+.recent time { color: var(--muted); margin-right: 6px; font-variant-numeric: tabular-nums; }
+.recent .st { color: var(--lamp); margin-right: 4px; }
+dialog.report { width: min(760px, calc(100vw - 32px)); max-height: calc(100vh - 48px); padding: 0; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--paper); }
+dialog.report::backdrop { background: rgba(10, 10, 18, .6); }
+.dlg-head { position: sticky; top: 0; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 16px; background: var(--panel); border-bottom: 1px solid var(--line); }
+.dlg-head h3 { font-family: var(--display); font-weight: 400; font-size: 20px; margin: 0; }
+.md { padding: 12px 16px 18px; font-size: 13px; }
+.md h4 { font-size: 13px; color: var(--lamp); margin: 14px 0 6px; }
+.md p { margin: 0 0 6px; }
+.md ul { margin: 0 0 6px; padding-left: 18px; }
+.md code { color: var(--lamp); font-size: 12px; word-break: break-all; }
+.md .tbl { overflow-x: auto; margin: 6px 0 10px; }
+.md table { border-collapse: collapse; font-size: 12px; min-width: 100%; }
+.md th, .md td { border: 1px solid var(--line); padding: 5px 7px; text-align: left; vertical-align: top; }
+.md th { color: var(--muted); font-weight: 400; }
+.md td.r-ok { color: var(--done); white-space: nowrap; }
+.md td.r-bad { color: var(--warn); white-space: nowrap; font-weight: 700; }
 .livenote a { color: var(--lamp); }
 </style>
 </head>
@@ -194,6 +218,11 @@ button[aria-pressed=true] { border-color: var(--lamp); color: var(--lamp); }
         <div class="sdetail" id="sdetail"></div>
       </section>
 
+      <section class="card" id="reportsCard" hidden>
+        <p class="label">에이전트 보고서</p>
+        <ul class="reports" id="reports"></ul>
+      </section>
+
       <section class="card">
         <p class="label">업무 기록</p>
         <ul class="log" id="log" aria-live="polite"></ul>
@@ -207,6 +236,11 @@ button[aria-pressed=true] { border-color: var(--lamp); color: var(--lamp); }
     </aside>
   </div>
 </div>
+
+<dialog class="report" id="reportDlg" aria-labelledby="reportTitle">
+  <div class="dlg-head"><h3 id="reportTitle"></h3><button type="button" id="reportClose">닫기</button></div>
+  <div class="md" id="reportBody"></div>
+</dialog>
 
 <script>
 (() => {
@@ -246,6 +280,24 @@ const team = [
 team.forEach((t, i) => {
   A[t.id] = Object.assign(t, { i, pos:{x:t.home[0], y:t.home[1]}, path:[], dir:'down', bubble:null, carry:null, done:null, lastStep:0 });
 });
+// 실제 Claude Code 에이전트(.claude/agents/melune-*.md)와 캐릭터 대응
+const AGENT_OF = { pm:'pm', zig:'search', pick:'pick', gpt:'image', feed:'feed', reel:'reel', cap:'caption', qa:'qa', upl:'distribute', kpi:'metrics' };
+const CHAR_OF = Object.fromEntries(Object.entries(AGENT_OF).map(([c, ag]) => [ag, c]));
+const AG_ICON = { pm:'doc', search:'cart', pick:'cart', image:'img', feed:'img', reel:'film', caption:'doc', qa:'doc', distribute:'phone', metrics:'chart' };
+Object.entries({
+  me:   { kind:'사람', does:'테마를 승인하고, 곡을 고르고, 인스타에 직접 올리고, 댓글에 답합니다.', files:'—' },
+  pm:   { kind:'메인 Claude 세션', does:'일을 받아 역할 에이전트에게 나눠 맡기고, 결과를 모아 보고합니다.', files:'REELS_SYSTEM.md · studio/agent_status.py' },
+  zig:  { kind:'에이전트 · melune-search', does:'새 테마 검색어로 지그재그 후보 상품을 모읍니다 (ego 브라우저).', files:'queries.json → batch/ego/zz_search.mjs → inbox/search.json' },
+  pick: { kind:'에이전트 · melune-pick', does:'룩별 상품을 확정하고, 수수료 링크를 만들고, 품절을 점검합니다.', files:'pick.py · pick_override.json · zz_affiliate.mjs · check_soldout.py' },
+  gpt:  { role:'이미지', kind:'에이전트 · melune-image (ChatGPT를 ego로 조종)', does:'상품 시트를 ChatGPT에 보내 실착·보드 이미지를 받고, 글자·얼굴·색이 틀린 룩은 다시 만듭니다.', files:'build_jobs.py · make_sheets.py · gpt_gen.mjs → inbox/<테마>-n.jpg, -nb.jpg' },
+  feed: { kind:'에이전트 · melune-feed', does:'룩 6장으로 피드 캐러셀과 피드 캡션을 만들고 표지를 확인합니다.', files:'make_feed2.py → output/batch2/<키>/' },
+  reel: { kind:'에이전트 · melune-reel', does:'실착·보드 이미지를 박자에 맞춰 모음.ZIP 릴스로 뽑고 프레임과 길이를 확인합니다.', files:'ig_reels_zip.py → output/reels_zip/<키>.mp4' },
+  cap:  { kind:'에이전트 · melune-caption', does:'표지 문구(zip·chip·bubble·pills)와 캡션·곡 메모를 씁니다. 첫 줄은 후킹, #광고는 해시태그 맨 앞.', files:'themes_extra.json · output/reels_zip/captions/<키>.txt' },
+  qa:   { kind:'에이전트 · melune-qa', does:'영상·캡션·품절을 체크리스트로 보고 통과/반려를 판정합니다. 고치지 않고 지적만 해요.', files:'studio/qa/<키>.md' },
+  upl:  { kind:'에이전트 · melune-distribute', does:'게시 후 링크북·ZIP·리틀리를 같은 번호로 연결합니다. 공개 작업은 사용자 승인이 있을 때만.', files:'make_linkbook.py · zz_zip_create.mjs · littly_add.mjs' },
+  dm:   { kind:'Meta 자동화 규칙 (AI 에이전트 아님)' },
+  kpi:  { kind:'에이전트 · melune-metrics', does:'릴스 지표를 metrics.csv에 모으고, 일요일에 형식별 비교와 다음 묶음 제안을 씁니다.', files:'ig_metrics.js · metrics_log.py → studio/reviews/' },
+}).forEach(([id, o]) => Object.assign(A[id], o));
 const visit = a => a.desk === 'back' ? {x:a.home[0]+16, y:a.home[1]} : {x:a.home[0], y:a.home[1]+20};
 const atHome = a => Math.abs(a.pos.x-a.home[0]) < .5 && Math.abs(a.pos.y-a.home[1]) < .5;
 
@@ -340,13 +392,13 @@ const STAGES = [
     check:['글자·로고가 생기지 않음', '사람·마네킹이 나오지 않음', '아이템이 작게 떠 있지 않음', '바닥 톤이 같음', '시계는 오른쪽'],
     files:'batch/rules.txt · layout_ref.jpg → batch/inbox/' },
   { name:'피드·릴스', when:'화', days:[2], time:'화요일 · 30분', who:['feed','reel','cap'],
-    does:['subs.py에 자막 5개 (표지 + 룩 2~6)', 'make_feed2.py → 피드 01~06.jpg + caption.txt', 'ig_reels_v2.py → 몽타주(약 1.2초) → 룩 한 장씩 박자마다 → 3×2 투표판', '곡은 songs.json, 인스타 앱과 같은 곡·같은 시작 지점'],
-    check:['컷은 전부 박 위, 길이는 8박 배수', '한 곡을 3개 이상 릴스에 쓰지 않음', '확인은 preview/(곡 포함), 업로드는 무음 mp4'],
-    files:'output/batch2/NN_<테마>/ · output/reels_v2/<key>.mp4' },
+    does:['캡션 에이전트: 표지 문구(zip·chip·bubble·pills)와 캡션·곡 메모', '피드 에이전트: make_feed2.py → 피드 01~06.jpg', '릴스 에이전트: ig_reels_zip.py → 표지 몽타주 → 룩마다 보드 ↔ 실착 → 투표판', '곡은 팔로잉 계정 인기 음원 중 박자 선명도 2 이상, 안 쓴 곡'],
+    check:['컷은 실제 타격음에 붙음, 루프가 다운비트에 이어짐', '줌·튕김 효과 없음', '확인은 preview/(곡 포함), 업로드는 무음 mp4', '인스타 앱에서 곡 시작 지점을 옮기지 않음'],
+    files:'output/batch2/<키>/ · output/reels_zip/<키>.mp4 · captions/<키>.txt' },
   { name:'검수', when:'수', days:[3], time:'수요일 · 업로드 전 필수', who:['qa'],
-    does:['영상과 캡션·연결을 체크리스트대로 확인', '걸리면 해당 팀에 돌려보내고 다시 확인'],
-    check:['첫 프레임 1초 안, 질문이 상단 UI에 안 가림', '투표판이 오른쪽 버튼 영역과 안 겹침', '마지막 장이 첫 장으로 자연스럽게 이어짐', '길이 8~15초', '캡션 첫 줄 질문, 둘째 줄 📌 No.NN', '📌 이름 = 리틀리 칸 = ZIP 제목', '수수료 문장 있음, [광고] 없음', '해시태그 5개 이내', '상품 전부 판매중'],
-    files:'REELS_SYSTEM.md 3-6 체크리스트' },
+    does:['검수 에이전트가 영상 프레임·길이·캡션·품절을 직접 확인', '통과/반려 보고서를 남기고, 반려면 릴스·캡션 에이전트에게 돌려보냄', '콘텐츠는 고치지 않고 판정만 함'],
+    check:['표지 문구가 인스타 상단 UI에 안 가림', '투표판이 오른쪽 버튼 영역과 안 겹침', '글자 깨짐·잘림 없음', '길이 8~30초, 1080×1920', '캡션 첫 줄 = 후킹 문장 (수수료 문장 없음)', '📌 No.NN 번호가 키와 같음', '룩 줄 01~06, "코디" DM 안내 있음', '해시태그 5개 이내, 맨 앞 #광고', '상품 전부 판매중'],
+    files:'.claude/agents/melune-qa.md → studio/qa/<키>.md' },
   { name:'업로드·유통', when:'매일 20시', days:null, time:'매일 20:00 · 아이폰', who:['upl','me'],
     does:['파일 앱에서 mp4 선택 (사진첩은 열지 않음)', '곡 검색 → 시작 지점을 start_ms에 맞춤, 원본 소리 0', '캡션은 1회 붙여넣고 5초 대기, AI 라벨 켜기', '게시 후 1분 안에 /info로 캡션 확인', '링크북 push → ZIP "No.NN <이름> 6룩" → 리틀리 칸 추가'],
     check:['공유 직전 클로드에게 확인받기', '리틀리 링크는 s.zigzag.kr 짧은 링크', 'zip_links.json에 기록'],
@@ -381,7 +433,7 @@ function renderStage() {
     <p class="follow">${pinned !== null ? '고정됨 · 같은 단계를 다시 누르면 진행을 따라갑니다' : '지금 진행 중인 단계를 따라가는 중 · 단계를 누르면 고정됩니다'}</p>
     <div class="head"><h3></h3><span class="pill ${st[1]}">${st[0]}</span></div>
     <p class="when"></p>
-    <div class="who">${s.who.map(id => `<button type="button" data-who="${id}" style="color:${A[id].look.shirt === '#f1e4cf' || A[id].look.shirt === '#f4f1ea' ? A[id].look.hair : A[id].look.shirt}">${A[id].name}</button>`).join('')}</div>
+    <div class="who">${s.who.map(id => `<button type="button" data-who="${id}" style="color:${colorOf(A[id])}">${A[id].name}</button>`).join('')}</div>
     <h4>하는 일</h4><ul class="does">${s.does.map(() => '<li></li>').join('')}</ul>
     <h4>체크 기준</h4><ul class="chk">${s.check.map(() => `<li${done ? ' class="ok"' : ''}></li>`).join('')}</ul>
     <h4>만드는 파일</h4><p><code></code></p>
@@ -401,9 +453,13 @@ stEl.addEventListener('click', e => {
 });
 sdEl.addEventListener('click', e => { const b = e.target.closest('[data-who]'); if (b) select(b.dataset.who); });
 const logEl = document.getElementById('log');
-const colorOf = a => a.look.shirt === '#f1e4cf' || a.look.shirt === '#f4f1ea' ? a.look.hair : a.look.shirt;
-function log(a, text) {
-  const time = clockText();
+// 어두운 배경에서 읽히는 이름 색: 셔츠가 너무 밝거나 어두우면 머리색을 쓴다
+const lum = hex => { const n = parseInt(hex.slice(1), 16); return ((n >> 16) * .299 + ((n >> 8) & 255) * .587 + (n & 255) * .114) / 255; };
+const colorOf = a => { const L = lum(a.look.shirt); return L > .85 || L < .4 ? a.look.hair : a.look.shirt; };
+let lastLog = null;
+function log(a, text, at) {
+  const time = at || clockText();
+  lastLog = { who: a.name, color: colorOf(a), text };
   const li = document.createElement('li');
   li.innerHTML = `<time>${time}</time><span><span class="who" style="color:${colorOf(a)}"></span><span class="tx"></span></span>`;
   li.querySelector('.who').textContent = a.name;
@@ -430,10 +486,12 @@ teamEl.addEventListener('click', e => { const b = e.target.closest('button'); if
 function select(id) {
   selected = id; pickedAt = simT; const a = A[id];
   teamEl.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.id === id));
-  detailEl.innerHTML = `<h3></h3><p class="d"></p><p><code></code></p>`;
+  detailEl.innerHTML = `<h3></h3><p class="note kind"></p><p class="d"></p><p><code></code></p>`;
+  detailEl.querySelector('.kind').textContent = a.kind || '';
   detailEl.querySelector('h3').textContent = `${a.name} · ${a.role}`;
   detailEl.querySelector('.d').textContent = a.does;
   detailEl.querySelector('code').textContent = a.files;
+  agentExtra(a);
 }
 function refreshPills() {
   team.forEach(a => {
@@ -1086,7 +1144,7 @@ function refreshNow() {
     nowEl.querySelector('b').style.color = colorOf(a);
     nowEl.querySelector('.tx').textContent = t;
   } else {
-    const l = logItems[logItems.length - 1];
+    const l = lastLog;
     nowEl.innerHTML = '<span class="lbl">방금</span><b></b><span class="tx"></span>';
     nowEl.querySelector('b').textContent = l ? l.who : '사무실';
     if (l) nowEl.querySelector('b').style.color = l.color;
@@ -1189,6 +1247,87 @@ if ('ResizeObserver' in window) new ResizeObserver(fitCanvas).observe(cv); else 
 fitCanvas();
 setMode(store('office.cam') || (mobile ? 'follow' : 'all'));
 
+// ---------- 에이전트 보고서 · 최근 활동 (실시간 모드) ----------
+const repEl = document.getElementById('reports'), repCard = document.getElementById('reportsCard');
+const dlg = document.getElementById('reportDlg');
+document.getElementById('reportClose').addEventListener('click', () => dlg.close());
+dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); });
+const esc = s => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const inline = s => esc(s).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
+// 보고서용 아주 작은 마크다운: 제목 · 표 · 목록 · 문단
+function mdToHtml(md) {
+  const out = [], lines = md.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i];
+    if (/^\|/.test(l)) {
+      const rows = [];
+      while (i < lines.length && /^\|/.test(lines[i])) { if (!/^\|[\s|:-]+\|$/.test(lines[i])) rows.push(lines[i]); i++; }
+      i--;
+      const cells = r => r.replace(/^\||\|$/g, '').split('|').map(c => c.trim());
+      const cls = c => /^(통과|ok|pass)/i.test(c) ? ' class="r-ok"' : /^(반려|실패|fail)/i.test(c) ? ' class="r-bad"' : '';
+      out.push('<div class="tbl"><table><thead><tr>' + cells(rows[0]).map(c => `<th>${inline(c)}</th>`).join('') + '</tr></thead><tbody>' +
+        rows.slice(1).map(r => '<tr>' + cells(r).map(c => `<td${cls(c)}>${inline(c)}</td>`).join('') + '</tr>').join('') + '</tbody></table></div>');
+    } else if (/^#{2,}\s/.test(l)) out.push(`<h4>${inline(l.replace(/^#+\s/, ''))}</h4>`);
+    else if (/^#\s/.test(l)) continue;
+    else if (/^\s*[-*]\s/.test(l)) {
+      const items = [];
+      while (i < lines.length && /^\s*[-*]\s/.test(lines[i])) { items.push(lines[i].replace(/^\s*[-*]\s(\[.\]\s)?/, '')); i++; }
+      i--; out.push('<ul>' + items.map(x => `<li>${inline(x)}</li>`).join('') + '</ul>');
+    } else if (l.trim()) out.push(`<p>${inline(l)}</p>`);
+  }
+  return out.join('');
+}
+async function openReport(r) {
+  document.getElementById('reportTitle').textContent = r.title;
+  document.getElementById('reportBody').innerHTML = '<p class="note">불러오는 중…</p>';
+  dlg.showModal();
+  try {
+    const res = await fetch(`/api/report/${r.kind}/${encodeURIComponent(r.name)}`, { cache: 'no-store' });
+    if (!res.ok) throw new Error(res.status);
+    document.getElementById('reportBody').innerHTML = mdToHtml(await res.text());
+  } catch (e) { document.getElementById('reportBody').innerHTML = '<p class="note">보고서를 불러오지 못했어요. Studio 앱이 켜져 있는지 확인해 주세요.</p>'; }
+}
+const verdict = title => /반려|실패/.test(title) ? ['반려', 'bad'] : /통과/.test(title) ? ['통과', 'good'] : ['리뷰', ''];
+const hhmm = ts => { const d = new Date(ts * 1000); return `${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+let repSig = '';
+function renderReports(d) {
+  const rs = d.reports || [];
+  const sig = rs.map(r => r.name + r.mtime).join();
+  if (sig === repSig) return;
+  if (repSig && rs[0] && !repSig.includes(rs[0].name + rs[0].mtime)) {   // 새 보고서: 담당이 PM에게 가져간다
+    const who = rs[0].kind === 'qa' ? A.qa : A.kpi;
+    act(async () => { await go(who, A.pm, 'doc'); await say(who, `보고서 올렸어요 · ${verdict(rs[0].title)[0]}`, rs[0].kind === 'qa' ? 'doc' : 'chart', 1600); home(who); });
+  }
+  repSig = sig;
+  repCard.hidden = !rs.length;
+  repEl.innerHTML = '';
+  rs.forEach(r => {
+    const [label, cls] = verdict(r.title);
+    const li = document.createElement('li');
+    li.innerHTML = `<button type="button"><span class="pill ${cls}">${label}</span><span class="tt"></span><time>${hhmm(r.mtime)}</time></button>`;
+    li.querySelector('.tt').textContent = r.title;
+    li.querySelector('button').addEventListener('click', () => openReport(r));
+    repEl.append(li);
+  });
+}
+const ST_KO = { start: '시작', work: '진행', handoff: '넘김', done: '끝', fail: '막힘' };
+function agentExtra(a) {
+  if (!live || !snap) return;
+  const ag = AGENT_OF[a.id];
+  const rows = (snap.activity || []).filter(e => e.agent === ag).slice(-5).reverse();
+  const box = document.createElement('div');
+  box.innerHTML = '<p class="label" style="margin:10px 0 4px">최근 활동</p>';
+  if (rows.length) {
+    const ul = document.createElement('ul'); ul.className = 'recent';
+    rows.forEach(e => { const li = document.createElement('li'); li.innerHTML = `<time>${e.at.slice(6, 11)}</time><span class="st">${ST_KO[e.state] || e.state}</span><span></span>`; li.lastChild.textContent = e.msg + (e.key ? ` · ${e.key}` : ''); ul.append(li); });
+    box.append(ul);
+  } else box.insertAdjacentHTML('beforeend', '<p class="note">아직 기록이 없어요.</p>');
+  const kind = a.id === 'qa' ? 'qa' : a.id === 'kpi' ? 'review' : null;
+  const r = kind && (snap.reports || []).find(x => x.kind === kind);
+  if (r) { const b = document.createElement('button'); b.type = 'button'; b.style.marginTop = '8px'; b.textContent = `최근 보고서 열기 · ${r.title}`; b.addEventListener('click', () => openReport(r)); box.append(b); }
+  detailEl.append(box);
+}
+
 // ---------- 실시간 모드: Studio 앱(/office/)에서 열면 /api/office 를 5초마다 읽는다 ----------
 const themesEl = document.getElementById('themes');
 function stageOf(t) {
@@ -1237,6 +1376,31 @@ function render(d) {
 }
 
 // 이전 상태와 비교해서 바뀐 것만 장면으로 보여준다
+let lastTs = null;
+// 에이전트가 agent_status.py 로 남긴 기록을 장면으로 바꾼다
+function agentActivity(d) {
+  const rows = d.activity || [];
+  if (lastTs === null) {
+    rows.slice(-8).forEach(e => { const a = A[CHAR_OF[e.agent]]; if (a) log(a, e.msg, e.at.slice(6, 11)); });
+    lastTs = rows.length ? rows[rows.length - 1].ts : 0;
+    return;
+  }
+  rows.filter(e => e.ts > lastTs).forEach(e => act(() => playActivity(e)));
+  if (rows.length) lastTs = Math.max(lastTs, rows[rows.length - 1].ts);
+}
+async function playActivity(e) {
+  const a = A[CHAR_OF[e.agent]]; if (!a) return;
+  const icon = e.state === 'done' ? 'check' : e.state === 'fail' ? 'warn' : e.state === 'start' ? 'bulb' : AG_ICON[e.agent];
+  if (e.state === 'start' && e.agent !== 'pm' && a.desk !== 'none') { await go(A.pm, a, 'doc'); await say(A.pm, '이거 부탁해요', 'doc', 900); home(A.pm); }
+  await say(a, e.msg, icon, e.state === 'fail' ? 2400 : 1800);
+  const b = e.state === 'handoff' && A[CHAR_OF[e.to]];
+  if (b) { await go(a, b, AG_ICON[e.agent]); home(a); }
+}
+function activeRows(d) {
+  const lastBy = {}, now = Date.now() / 1000;
+  (d.activity || []).forEach(e => { lastBy[e.agent] = e; });
+  return Object.values(lastBy).filter(e => !['done', 'fail'].includes(e.state) && now - e.ts < 900);
+}
 function diff(prev, d) {
   const { me, pm, pick, gpt, feed, reel, qa, upl, dm, kpi } = A;
   const old = Object.fromEntries(prev.themes.map(t => [t.key, t]));
@@ -1264,6 +1428,11 @@ function diff(prev, d) {
 
 // 바뀐 게 없을 때는 각자 실제 현황을 말풍선으로 (기록에는 안 남김)
 function ambient(d) {
+  const ar = activeRows(d);
+  if (ar.length && Math.random() < .6) {
+    const e = ar[Math.floor(Math.random() * ar.length)], a = A[CHAR_OF[e.agent]];
+    if (a && !a.bubble && !a.path.length) { a.bubble = { text: e.msg, icon: AG_ICON[e.agent], left: 4.8 }; lastActor = a; return; }
+  }
   const active = d.themes.filter(t => !t.uploaded);
   const run = d.jobs.find(j => j.status === 'running');
   const up = d.themes.filter(t => t.uploaded).sort((a, b) => String(b.uploaded.at).localeCompare(String(a.uploaded.at)))[0];
@@ -1292,6 +1461,8 @@ async function poll() {
     if (!live) { enterLive(d); log(A.pm, `현황 불러옴 · 진행 중 ${d.themes.filter(t => !t.uploaded).length}개`); }
     else document.getElementById('mode').className = 'mode live';
     render(d);
+    renderReports(d);
+    agentActivity(d);
     if (snap) diff(snap, d);
     snap = d;
     if (!acting && simT - ambientT > 4) { ambientT = simT; ambient(d); }
