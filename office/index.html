@@ -183,7 +183,7 @@ dialog.report::backdrop { background: rgba(0,0,0,.7); }
         <button type="button" data-zoom="1" aria-label="확대">+</button>
         <span class="hint">두 손가락이나 트랙패드로 확대 · 확대한 뒤 끌어서 이동 · 두 번 누르면 확대/전체</span>
       </div>
-      <canvas id="office" width="1680" height="990" role="img" aria-label="MELUNE 픽셀 사무실. AI 팀원들이 기획, 상품 수집, 이미지 생성, 제작, 검수, 업로드, DM 응대, 리뷰 순서로 일을 넘겨줍니다."></canvas>
+      <canvas id="office" width="1680" height="1350" role="img" aria-label="MELUNE 픽셀 사무실. AI 팀원들이 기획, 상품 수집, 이미지 생성, 제작, 검수, 업로드, DM 응대, 리뷰 순서로 일을 넘겨주고, 아래 분석동에서 조회수·트렌드·성장 실험·댓글을 분석합니다."></canvas>
       <p class="now" id="now" aria-live="off"></p>
       <p class="legend"><span id="legendtx">시뮬레이션 화면입니다. 실제 작업 순서는 REELS_SYSTEM.md의 주간 리듬을 따릅니다.</span> 가구·바닥 도트: <a href="https://opengameart.org/content/cool-school-tileset" target="_blank" rel="noopener">Cool School tileset</a> (NettySvit, CC0)</p>
     </div>
@@ -191,7 +191,7 @@ dialog.report::backdrop { background: rgba(0,0,0,.7); }
     <aside>
       <section class="card">
         <p class="label" id="cmdlabel">새 묶음 지시 (데모 재생)</p>
-        <p class="livenote" id="livenote" hidden>새 묶음은 Claude에게 지시하세요. 이미지 올리기·곡 지정·제작은 <a href="/">Studio 앱</a>에서 할 수 있어요. 이 화면은 5초마다 실제 상태를 읽어 보여줍니다.</p>
+        <p class="livenote" id="livenote" hidden>새 묶음은 Claude에게 지시하세요. 이미지 올리기·곡 지정·제작은 <a href="/">Studio 앱</a>, 릴스별 미리보기·진행·파일은 <a href="/reels/">릴스 보관함</a>에서 볼 수 있어요. 이 화면은 5초마다 실제 상태를 읽어 보여줍니다.</p>
         <form id="cmd">
           <input type="text" id="theme" placeholder="테마 예: 니트 조끼" value="가디건" maxlength="12" aria-label="테마">
           <button class="primary" type="submit">지시하기</button>
@@ -223,7 +223,7 @@ dialog.report::backdrop { background: rgba(0,0,0,.7); }
       </section>
 
       <section class="card">
-        <p class="label">팀원 12명 · 라운지 고양이 1마리</p>
+        <p class="label">팀원 16명 · 라운지 고양이 1마리</p>
         <ul class="team" id="team"></ul>
         <div class="detail" id="detail"><p class="note">팀원을 누르면 하는 일과 쓰는 파일이 나옵니다.</p></div>
       </section>
@@ -238,7 +238,7 @@ dialog.report::backdrop { background: rgba(0,0,0,.7); }
 
 <script>
 (() => {
-const W = 560, H = 330, S = 3, LANE = 148;
+const W = 560, H = 450, S = 3, LANE = 148, LANE3 = 343;
 const cv = document.getElementById('office');
 const g = cv.getContext('2d');
 g.imageSmoothingEnabled = false;
@@ -270,14 +270,21 @@ const team = [
     does:'"코디" 댓글이 달리면 링크가 담긴 DM을 자동으로 보냅니다.', files:'Meta Business Suite › Automations' },
   { id:'kpi',  name:'지표봇',   role:'주간 리뷰',   desk:'back',  home:[510,240], look:{hair:'#f29fb5', skin:'#f3c9a6', shirt:'#8a8fe8', pants:'#33334a', style:'bun', phones:true},
     does:'조회수·저장·댓글을 기록하고 형식별(투표·2지선다·가격 공개) 반응을 비교합니다.', files:'output/metrics.csv' },
+  // 분석동: 계정 가치를 올리는 팀
+  { id:'views', name:'뷰',       role:'조회수 분석실', desk:'back', home:[86,430],  look:{hair:'#2b4c7e', skin:'#f3c9a6', shirt:'#5fb3d9', pants:'#2f3350', style:'short', phones:true}, does:'', files:'' },
+  { id:'trend', name:'트렌디',   role:'트렌드 분석실', desk:'back', home:[246,430], look:{hair:'#d9a441', skin:'#efc19c', shirt:'#e86a92', pants:'#38324d', style:'long'}, does:'', files:'' },
+  { id:'growth', name:'그로스',  role:'성장 실험실',   desk:'back', home:[365,430], look:{hair:'#3a3a3a', skin:'#e9b48e', shirt:'#7fd17f', pants:'#2b2f3a', style:'bun'}, does:'', files:'' },
+  { id:'comm', name:'커뮤',      role:'커뮤니티',     desk:'back', home:[487,430], look:{hair:'#9b5de5', skin:'#f3c9a6', shirt:'#ffb86b', pants:'#3a3550', style:'long'}, does:'', files:'' },
 ];
 team.forEach((t, i) => {
   A[t.id] = Object.assign(t, { i, pos:{x:t.home[0], y:t.home[1]}, path:[], dir:'down', bubble:null, carry:null, done:null, lastStep:0 });
 });
 // 실제 Claude Code 에이전트(.claude/agents/melune-*.md)와 캐릭터 대응
-const AGENT_OF = { pm:'pm', zig:'search', pick:'pick', gpt:'image', feed:'feed', reel:'reel', cap:'caption', qa:'qa', upl:'distribute', kpi:'metrics' };
+const AGENT_OF = { pm:'pm', zig:'search', pick:'pick', gpt:'image', feed:'feed', reel:'reel', cap:'caption', qa:'qa', upl:'distribute', kpi:'metrics',
+  views:'views', trend:'trend', growth:'growth', comm:'community' };
 const CHAR_OF = Object.fromEntries(Object.entries(AGENT_OF).map(([c, ag]) => [ag, c]));
-const AG_ICON = { pm:'doc', search:'cart', pick:'cart', image:'img', feed:'img', reel:'film', caption:'doc', qa:'doc', distribute:'phone', metrics:'chart' };
+const AG_ICON = { pm:'doc', search:'cart', pick:'cart', image:'img', feed:'img', reel:'film', caption:'doc', qa:'doc', distribute:'phone', metrics:'chart',
+  views:'chart', trend:'bulb', growth:'check', community:'heart' };
 Object.entries({
   me:   { kind:'사람', does:'테마를 승인하고, 곡을 고르고, 인스타에 직접 올리고, 댓글에 답합니다.', files:'—' },
   pm:   { kind:'메인 Claude 세션', does:'일을 받아 역할 에이전트에게 나눠 맡기고, 결과를 모아 보고합니다.', files:'REELS_SYSTEM.md · studio/agent_status.py' },
@@ -291,6 +298,10 @@ Object.entries({
   upl:  { kind:'에이전트 · melune-distribute', does:'게시 후 링크북·ZIP·리틀리를 같은 번호로 연결합니다. 공개 작업은 사용자 승인이 있을 때만.', files:'make_linkbook.py · zz_zip_create.mjs · littly_add.mjs' },
   dm:   { kind:'Meta 자동화 규칙 (AI 에이전트 아님)' },
   kpi:  { kind:'에이전트 · melune-metrics', does:'릴스 지표를 metrics.csv에 모으고, 일요일에 형식별 비교와 다음 묶음 제안을 씁니다.', files:'ig_metrics.js · metrics_log.py → studio/reviews/' },
+  views:  { kind:'에이전트 · melune-views', does:'올린 릴스의 조회·참여율을 형식·곡·후킹·올린 시각별로 비교해 다음 릴스에 바로 쓸 개선점 3가지를 뽑습니다.', files:'output/metrics.csv → studio/reviews/views-날짜.md' },
+  trend:  { kind:'에이전트 · melune-trend', does:'팔로잉 패션 계정의 터진 릴스, 지그재그 인기 상품, 인기 음원을 근거로 다음 묶음 테마·후킹·곡 후보를 제안합니다. 읽기만 해요.', files:'following_reels_scan · music/ig/cand → studio/trends/날짜.md' },
+  growth: { kind:'에이전트 · melune-growth', does:'팔로워·저장·코디 DM 요청 같은 계정 가치를 주간 성적표로 정리하고, 한 번에 하나만 바꾸는 실험을 설계·판정합니다.', files:'studio/experiments.md · studio/reviews/growth-날짜.md' },
+  comm:   { kind:'에이전트 · melune-community', does:'댓글을 읽고 번호 투표를 집계하고, 답글 초안과 자주 나온 질문을 정리합니다. 직접 달거나 보내지 않아요.', files:'studio/community/날짜.md' },
 }).forEach(([id, o]) => Object.assign(A[id], o));
 const visit = a => a.desk === 'back' ? {x:a.home[0]+16, y:a.home[1]} : {x:a.home[0], y:a.home[1]+20};
 const atHome = a => Math.abs(a.pos.x-a.home[0]) < .5 && Math.abs(a.pos.y-a.home[1]) < .5;
@@ -308,7 +319,8 @@ function setPath(a, pts, carry) {
   return new Promise(r => { a.done = () => { a.done = null; a.carry = null; r(); }; if (!a.path.length) a.done(); });
 }
 const laneOf = a => LANE + (a.i % 3) * 3;
-const lower = a => a.desk === 'back';
+const isLow = p => p.y > 335;                         // 분석동 (라운지 아래)
+const lower = a => a.desk === 'back' && !isLow({ y: a.home[1] });
 const gapX = x => [181, 309, 420].reduce((b, v) => Math.abs(v - x) < Math.abs(b - x) ? v : b);
 // 라운지에 있으면 먼저 위쪽 통로까지 빠져나온다
 function leaveLounge(a, pts) {
@@ -317,18 +329,29 @@ function leaveLounge(a, pts) {
   pts.push({x:ex, y:a.pos.y}, {x:ex, y:283}, {x:gx, y:283}, {x:gx, y:laneOf(a)});
   a.spot = null;
 }
+// from → to 사이 통로: 분석동이면 아래 통로(LANE3)와 빈틈 기둥(181·309·420)으로 위아래를 오간다
+function route(a, from, to) {
+  const lane = laneOf(a), pts = [];
+  if (isLow(from)) { const gx = gapX(from.x); pts.push({x:from.x, y:LANE3}, {x:gx, y:LANE3}, {x:gx, y:lane}); }
+  else pts.push({x:from.x, y:lane});
+  if (isLow(to)) { const gx = gapX(to.x); pts.push({x:gx, y:lane}, {x:gx, y:LANE3}, {x:to.x, y:LANE3}); }
+  else pts.push({x:to.x, y:lane});
+  pts.push(to);
+  return pts;
+}
 function go(a, b, carry) {
   const t = visit(b), pts = [];
   leaveLounge(a, pts);
   if (atHome(a) && a.desk === 'back') pts.push(visit(a));
-  const from = pts[pts.length-1] || a.pos, lane = laneOf(a);
-  pts.push({x:from.x, y:lane}, {x:t.x, y:lane}, t);
+  const from = pts[pts.length-1] || a.pos;
+  pts.push(...route(a, from, t));
   return setPath(a, pts, carry);
 }
 function home(a) {
   const v = a.desk === 'back' ? visit(a) : {x:a.home[0], y:a.home[1]}, lane = laneOf(a), pts = [];
   if (a.spot && lower(a)) { const ex = a.spot.ex; pts.push({x:ex, y:a.pos.y}, {x:ex, y:283}, {x:v.x, y:283}, v); a.spot = null; }
-  else { leaveLounge(a, pts); const from = pts[pts.length-1] || a.pos; pts.push({x:from.x, y:lane}, {x:v.x, y:lane}, v); }
+  else if (a.spot && isLow(v)) { const ex = a.spot.ex, gx = gapX(ex); pts.push({x:ex, y:a.pos.y}, {x:ex, y:283}, {x:gx, y:283}, {x:gx, y:LANE3}, {x:v.x, y:LANE3}, v); a.spot = null; }
+  else { leaveLounge(a, pts); const from = pts[pts.length-1] || a.pos; pts.push(...route(a, from, v)); }
   if (a.desk === 'back') pts.push({x:a.home[0], y:a.home[1]});
   return setPath(a, pts);
 }
@@ -337,6 +360,7 @@ function goLounge(a, s) {
   const pts = [];
   if (a.spot) { pts.push({x:a.spot.ex, y:a.pos.y}, {x:a.spot.ex, y:283}); }
   else if (lower(a)) { const v = visit(a); if (atHome(a)) pts.push(v); pts.push({x:v.x, y:283}); }
+  else if (isLow(a.pos)) { const v = visit(a), gx = gapX(v.x); if (atHome(a)) pts.push(v); pts.push({x:v.x, y:LANE3}, {x:gx, y:LANE3}, {x:gx, y:283}); }
   else { const gx = gapX(a.pos.x), lane = laneOf(a); pts.push({x:a.pos.x, y:lane}, {x:gx, y:lane}, {x:gx, y:283}); }
   pts.push({x:s.ex, y:283}, {x:s.ex, y:s.y}, {x:s.x, y:s.y});
   a.spot = s;
@@ -373,7 +397,7 @@ function tickClock() {
 // ---------- 패널 ----------
 // 단계별 내용: REELS_SYSTEM.md 3장에서 옮김
 const STAGES = [
-  { name:'기획', when:'일', days:[0], time:'일요일 · 30분', who:['me','pm'],
+  { name:'기획', when:'일', days:[0], time:'일요일 · 30분', who:['me','pm','trend'],
     does:['지난주 지표를 보고 이번 묶음 테마 5~6개 확정', '룩 6개 = 색 조합 6개, 룩마다 상의·하의·가방·신발(+아우터)', '형식 섞기: 투표형 3 · 2지선다 1~2 · 가격 공개 1~2'],
     check:['검색어가 있는 아이템인가 (슬랙스 코디, 트렌치 코디…)', '지금 계절 ±3주 안인가', '지그재그에 1~4만원대 상품이 많은가', '셋 중 둘 이상 만족'],
     files:'batch/plan.py → plan.json' },
@@ -397,11 +421,11 @@ const STAGES = [
     does:['파일 앱에서 mp4 선택 (사진첩은 열지 않음)', '곡 검색 → 시작 지점을 start_ms에 맞춤, 원본 소리 0', '캡션은 1회 붙여넣고 5초 대기, AI 라벨 켜기', '게시 후 1분 안에 /info로 캡션 확인', '링크북 push → ZIP "No.NN <이름> 6룩" → 리틀리 칸 추가'],
     check:['공유 직전 클로드에게 확인받기', '리틀리 링크는 s.zigzag.kr 짧은 링크', 'zip_links.json에 기록'],
     files:'make_linkbook.py · littly/zip_links.json · zip_covers/plan.json' },
-  { name:'댓글·DM', when:'24시간', days:null, time:'게시 후 24시간', who:['dm','me'],
+  { name:'댓글·DM', when:'24시간', days:null, time:'게시 후 24시간', who:['dm','me','comm'],
     does:['댓글 전부 답글, 번호 댓글엔 DM 유도 한 번 더', '"코디" 댓글 자동 DM이 갔는지 1~2개 확인', '스토리에 공유 + "몇 번?" 투표 스티커'],
     check:['좋아요·댓글 0인 채 2시간이면 스토리에 한 번 더', '자동 DM이 안 가면 연령 제한 여부 확인'],
     files:'Meta Business Suite › Automations' },
-  { name:'주간 리뷰', when:'일', days:[0], time:'일요일', who:['kpi','pm'],
+  { name:'주간 리뷰', when:'일', days:[0], time:'일요일', who:['kpi','views','growth','pm'],
     does:['metrics.csv에 릴스마다 한 줄씩 기록', '형식별(투표·2지선다·가격 공개) 반응 비교', '다음 묶음 형식 비율 정하기'],
     check:['7일 조회 상위 30% 형식을 다음 묶음 절반 이상으로', '저장률 2% 이상이면 그 테마 계열 더 만들기', '댓글 10개 이상이면 2주 뒤 순서 바꿔 재업로드', '3주 연속 정체면 형식 말고 소재를 바꾸기'],
     files:'output/metrics.csv' },
@@ -505,7 +529,7 @@ const qEl = document.getElementById('queue'), jobEl = document.getElementById('j
 function updQueue() { qEl.textContent = jobs.length ? `대기 중인 지시 ${jobs.length}건` : ''; }
 
 async function run({ T, N }) {
-  const { me, pm, zig, pick, gpt, feed, reel, cap, qa, upl, dm, kpi } = A;
+  const { me, pm, zig, pick, gpt, feed, reel, cap, qa, upl, dm, kpi, views, trend, growth, comm } = A;
   const key = `No.${N} ${T}`;
   jobEl.textContent = `진행 단계 · ${key}`; logItems.length = 0;
   stage(0);
@@ -513,6 +537,10 @@ async function run({ T, N }) {
   await say(me, `${T} 코디 묶음 부탁해요`, 'chat');
   await say(pm, '네, 기획 시작할게요', 'bulb');
   home(me);
+  await say(trend, '이번 주 트렌드 정리', 'bulb', 1300);
+  await go(trend, pm, 'chart');
+  await say(trend, `${T} 검색량 올라와요`, 'chart', 1300);
+  home(trend);
   await say(pm, `${key} 테마 확정`, 'doc');
   await say(pm, '룩 6개 · 색 조합 6개', 'doc');
   await say(pm, 'plan.json 저장', 'check', 1100);
@@ -575,14 +603,24 @@ async function run({ T, N }) {
 
   stage(6);
   await say(dm, '"코디" 댓글 → DM 발송', 'chat');
-  await Promise.all([say(dm, '링크 DM 보내는 중', 'heart', 1500), (async () => { await wait(300); await say(me, '댓글에 답글 다는 중', 'chat', 1500); })()]);
+  await Promise.all([say(dm, '링크 DM 보내는 중', 'heart', 1500), (async () => { await wait(300); await say(comm, '번호 투표 집계 · 답글 초안', 'heart', 1600); })()]);
+  await go(comm, me, 'chat');
+  await say(comm, '답글 초안 12개 올려둘게요', 'chat', 1300);
+  home(comm);
+  await say(me, '댓글에 답글 다는 중', 'chat', 1300);
 
   stage(7);
   await say(kpi, '조회 · 저장 · 댓글 기록', 'chart');
   await say(kpi, 'metrics.csv 저장', 'check', 1100);
-  await go(kpi, pm, 'chart');
-  await say(kpi, '형식별 반응 비교표요', 'chart', 1300);
-  home(kpi);
+  await go(kpi, views, 'chart');
+  await say(views, '형식·곡·후킹별 조회 비교', 'chart', 1500);
+  await go(views, growth, 'chart');
+  await say(views, '가설 넘길게요', 'chart', 1100);
+  home(views); home(kpi);
+  await say(growth, '다음 실험: 마지막 장 하나만', 'check', 1500);
+  await go(growth, pm, 'doc');
+  await say(growth, '계정 성적표요', 'chart', 1200);
+  home(growth);
   await say(pm, '다음 묶음 비율 조정', 'bulb', 1200);
   await go(pm, me, 'doc');
   await say(pm, `${key} 완료 보고드려요`, 'check');
@@ -729,6 +767,7 @@ function sky(h) {
 function rng(seed) { return () => { seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 
 const ZONES = [
+  [10, 350, 166, 94, '#3f6f9a'], [186, 350, 118, 94, '#a0624e'], [314, 350, 102, 94, '#4f8a5f'], [424, 350, 126, 94, '#9a5a7a'],
   [10, 54, 144, 74, '#5b7fa8'], [206, 54, 126, 74, '#b06a50'], [404, 54, 146, 74, '#5f9a77'],
   [10, 174, 166, 104, '#7f6cae'], [186, 174, 118, 104, '#b08a4c'], [314, 174, 102, 104, '#4f8f99'], [424, 174, 126, 104, '#b06b84'],
 ];
@@ -850,6 +889,33 @@ function wall(L) {
   spr('painting', 398, 8);
   windowView(448, 6, 74, 21, 5, L);
   plant(530, 44); plant(548, 44);
+}
+// 분석동 소품: 조회수 대시보드 화면 · 트렌드 무드보드 · A/B 실험 보드 · 하트 말풍선
+function analysisWing() {
+  const tt = Date.now() / 1000;
+  // 조회수 분석실: 스탠드형 대시보드 (막대 + 꺾은선)
+  r(18, 368, 46, 30, '#2b2f3a'); r(20, 370, 42, 26, '#101724');
+  [6, 10, 8, 14, 11, 18].forEach((h, i) => r(23 + i * 6, 393 - h, 4, h, i === 5 ? '#f2b544' : '#5fb3d9'));
+  for (let i = 0; i < 6; i++) r(24 + i * 6, 380 - Math.round(Math.sin(i + tt) * 2) - i, 2, 1, '#4ade80');
+  r(39, 398, 4, 12, '#4a4f5a'); r(33, 410, 16, 2, '#4a4f5a');
+  r(136, 386, 30, 22, '#e8eef4'); r(138, 388, 26, 3, '#5fb3d9'); r(138, 393, 18, 2, '#c9c9d6'); r(138, 397, 22, 2, '#c9c9d6'); r(138, 401, 14, 2, '#f2b544');
+  // 트렌드 분석실: 무드보드 (색 견본 + 화살표)
+  r(192, 368, 34, 28, '#b07f55'); r(194, 370, 30, 24, '#efe2c8');
+  [['#e879a6', 196, 372], ['#5c9ee0', 205, 372], ['#f2b544', 214, 372], ['#7fd1b0', 196, 381], ['#2f2c36', 205, 381]].forEach(([c, x, y]) => r(x, y, 7, 7, c));
+  r(214, 388, 8, 1, '#e2564f'); r(220, 385, 1, 4, '#e2564f'); r(219, 385, 3, 1, '#e2564f');
+  r(206, 396, 3, 14, '#6b4b3a');
+  // 성장 실험실: A/B 보드
+  r(322, 368, 30, 28, '#6b4b3a'); r(324, 370, 26, 24, '#f7f7f2');
+  g.font = `bold 5px ${FONT}`; g.fillStyle = '#3a3550'; g.textBaseline = 'top'; g.fillText('A', 327, 371); g.fillText('B', 340, 371);
+  r(327, 386 - 6, 5, 6 + 2, '#c9c9d6'); r(340, 386 - 11, 5, 11 + 2, '#4ade80');
+  r(336, 396, 3, 14, '#6b4b3a');
+  plant(404, 444);
+  // 커뮤니티: 하트·말풍선 벽판
+  r(432, 368, 34, 28, '#2a2236'); r(434, 370, 30, 24, '#322941');
+  const beat = Math.floor(tt * 2) % 2;
+  r(437 + beat, 374, 3, 2, '#e2564f'); r(441 + beat, 374, 3, 2, '#e2564f'); r(437 + beat, 376, 7, 2, '#e2564f'); r(439 + beat, 378, 3, 2, '#e2564f');
+  r(448, 374, 12, 6, '#f7f7f2'); r(450, 380, 2, 2, '#f7f7f2'); r(436, 385, 14, 6, '#5c9ee0'); r(452, 386, 9, 5, '#f7f7f2');
+  r(526, 404, 18, 12, '#3a8f5a'); plant(534, 444);
 }
 function sconce(x, y) { r(x - 1, y + 6, 3, 4, '#b8913e'); r(x - 3, y, 7, 6, '#f6dfa6'); r(x - 3, y + 5, 7, 1, '#d8b56a'); }
 function plant(x, by) { r(x-4, by-8, 9, 8, '#a05a3a'); r(x-3, by-9, 7, 1, '#7b4128'); r(x-1, by-22, 3, 14, '#3a8f5a'); r(x-6, by-18, 5, 3, '#4fae6c'); r(x+2, by-20, 6, 3, '#4fae6c'); r(x-5, by-13, 4, 3, '#3a8f5a'); r(x+2, by-14, 5, 3, '#3a8f5a'); }
@@ -975,7 +1041,7 @@ function lighting(L) {
   glow(286, 278, 34, '255,214,150', .4 * nf);
   glow(550, 286, 20, '255,248,224', .3 * nf);
   glow(26, 284, 14, '255,180,120', .25 * nf);
-  ['feed', 'reel', 'cap', 'dm', 'kpi'].forEach(id => { const a = A[id]; glow(a.home[0] - 1, a.home[1] - 33, a.bubble ? 22 : 15, '120,220,200', (a.bubble ? .38 : .22) * nf); });
+  ['feed', 'reel', 'cap', 'dm', 'kpi', 'views', 'growth', 'comm'].forEach(id => { const a = A[id]; glow(a.home[0] - 1, a.home[1] - 33, a.bubble ? 22 : 15, '120,220,200', (a.bubble ? .38 : .22) * nf); });
   ['zig', 'pick', 'pm', 'gpt'].forEach(id => { const a = A[id]; glow(a.home[0], a.home[1] - 10, 16, '150,200,255', .18 * nf); });
   glow(A.qa.home[0] - 8, A.qa.home[1] - 34, 14, '230,150,210', .25 * nf);
   g.restore();
@@ -1017,6 +1083,18 @@ function scene() {
   sign(246, 180, '검수');
   sign(365, 180, '업로드 · 유통');
   sign(487, 180, 'DM 응대 · 지표');
+
+  // 분석동: 방마다 소품 · 뒤돌아 앉은 책상
+  analysisWing();
+  deskBack(A.views,  [['crt', -10], ['note', 2, 4]]);
+  deskBack(A.trend,  [['laptop', -14, 2], ['books', 0, 0]]);
+  deskBack(A.growth, [['crt', -10], ['papers', 2, 4]]);
+  deskBack(A.comm,   [['phone', -14, 2], ['crt', -2]]);
+  ['views','trend','growth','comm'].forEach(id => { const a = A[id]; if (atHome(a)) person(a); });
+  sign(93, 356, '조회수 분석실');
+  sign(245, 356, '트렌드 분석실');
+  sign(365, 356, '성장 실험실');
+  sign(487, 356, '커뮤니티');
 
   // 걷는 사람 · 라운지 가구 · 고양이를 발 위치 순서로
   const items = LOUNGE.map(it => ({ y: it.y, draw: it.draw }));
@@ -1291,7 +1369,8 @@ function renderReports(d) {
   const sig = rs.map(r => r.name + r.mtime).join();
   if (sig === repSig) return;
   if (repSig && rs[0] && !repSig.includes(rs[0].name + rs[0].mtime)) {   // 새 보고서: 담당이 PM에게 가져간다
-    const who = rs[0].kind === 'qa' ? A.qa : A.kpi;
+    const n0 = rs[0].name, who = rs[0].kind === 'qa' ? A.qa : rs[0].kind === 'trend' ? A.trend : rs[0].kind === 'community' ? A.comm
+      : /^views-/.test(n0) ? A.views : /^growth-/.test(n0) ? A.growth : A.kpi;
     act(async () => { await go(who, A.pm, 'doc'); await say(who, `보고서 올렸어요 · ${verdict(rs[0].title)[0]}`, rs[0].kind === 'qa' ? 'doc' : 'chart', 1600); home(who); });
   }
   repSig = sig;
@@ -1318,8 +1397,9 @@ function agentExtra(a) {
     rows.forEach(e => { const li = document.createElement('li'); li.innerHTML = `<time>${e.at.slice(6, 11)}</time><span class="st">${ST_KO[e.state] || e.state}</span><span></span>`; li.lastChild.textContent = e.msg + (e.key ? ` · ${e.key}` : ''); ul.append(li); });
     box.append(ul);
   } else box.insertAdjacentHTML('beforeend', '<p class="note">아직 기록이 없어요.</p>');
-  const kind = a.id === 'qa' ? 'qa' : a.id === 'kpi' ? 'review' : null;
-  const r = kind && (snap.reports || []).find(x => x.kind === kind);
+  const pick = { qa: x => x.kind === 'qa', kpi: x => x.kind === 'review', views: x => /^views-/.test(x.name), growth: x => /^growth-/.test(x.name),
+    trend: x => x.kind === 'trend', comm: x => x.kind === 'community' }[a.id];
+  const r = pick && (snap.reports || []).find(pick);
   if (r) { const b = document.createElement('button'); b.type = 'button'; b.style.marginTop = '8px'; b.textContent = `최근 보고서 열기 · ${r.title}`; b.addEventListener('click', () => openReport(r)); box.append(b); }
   detailEl.append(box);
 }
